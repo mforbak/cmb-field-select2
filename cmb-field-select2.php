@@ -3,7 +3,7 @@
 Plugin Name: CMB2 Field Type: Select2
 Plugin URI: https://github.com/mforbak/cmb2-field-select2
 Origin Plugin URI: https://github.com/mustardBees/cmb-field-select2
-Description: Forded version of select2 field type for CMB2.
+Description: Select2 field type for CMB2.
 Version: 3.0.3
 Author: Phil Wylie
 Author URI: https://www.philwylie.co.uk/
@@ -50,6 +50,10 @@ class PW_CMB2_Field_Select2
 		if ( version_compare( CMB2_VERSION, '2.2.2', '>=' ) ) {
 			$field_type_object->type = new CMB2_Type_Select( $field_type_object );
 		}
+
+        $postType = $field->args('post_type');
+        $callback = $postType ? array($this, 'posts') : $field->args('options_cb');
+        $field->args['options_cb'] = $callback;
 
 		echo $field_type_object->select( array(
 			'class'            => 'pw_select2 pw_select',
@@ -203,13 +207,34 @@ class PW_CMB2_Field_Select2
 		wp_enqueue_style( 'pw-select2-tweaks', $asset_path . '/css/style.css', array( 'pw-select2' ), self::VERSION );
 	}
 
-	public function posts($field, $field_escaped_value, $field_type_object) {
+    /**
+     * Display the posts
+     *
+     * @access public
+     * @param \CMB2_Field $field
+     * @return array
+     */
+	public function posts($field) {
+        $taxonomies = [];
         $postType = $field->args('post_type');
         $options = $field->args('options');
         $posts = get_posts(['post_type' => $postType, 'posts_per_page' => -1, 'post_status' => 'any']);
 
+        foreach($field->args('post_type_taxonomies') ?: [] AS $taxonomy) {
+            $taxonomy = get_taxonomy($taxonomy);
+            $taxonomies[$taxonomy->name] = $taxonomy;
+        }
+
         foreach($posts AS $post) {
-            $options[$post->ID] = "#{$post->ID} - {$post->post_title} ({$post->post_type})";
+            $taxonomyList = [];
+
+            foreach($taxonomies AS $slug => $taxonomy) {
+                $terms = wp_get_post_terms($post->ID, $slug, ['fields' => 'names']);
+                $taxonomyList[$slug] = sprintf('%s: %s', $taxonomy->label, implode(', ', $terms));
+            }
+
+            $options[$post->ID] = "#{$post->ID} - {$post->post_title} ({$post->post_type}) ";
+            $taxonomyList && $options[$post->ID] .= sprintf(' / %s', implode(' - ', $taxonomyList));
         }
 
         return $options;
