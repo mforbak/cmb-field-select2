@@ -1,27 +1,29 @@
 <?php
 /*
 Plugin Name: CMB2 Field Type: Select2
-Plugin URI: https://github.com/mustardBees/cmb-field-select2
-GitHub Plugin URI: https://github.com/mustardBees/cmb-field-select2
-Description: Select2 field type for CMB2.
+Plugin URI: https://github.com/mforbak/cmb2-field-select2
+Origin Plugin URI: https://github.com/mustardBees/cmb-field-select2
+Description: Forded version of select2 field type for CMB2.
 Version: 3.0.3
 Author: Phil Wylie
 Author URI: https://www.philwylie.co.uk/
 License: GPLv2+
 */
 
-/**
- * Class PW_CMB2_Field_Select2
- */
-class PW_CMB2_Field_Select2 {
+class PW_CMB2_Field_Select2
+{
 
 	/**
 	 * Current version number
+     * @var string
 	 */
 	const VERSION = '3.0.3';
 
 	/**
 	 * Initialize the plugin by hooking into CMB2
+     *
+     * @access public
+     * @return void
 	 */
 	public function __construct() {
 		add_filter( 'cmb2_render_pw_select', array( $this, 'render_pw_select' ), 10, 5 );
@@ -31,9 +33,17 @@ class PW_CMB2_Field_Select2 {
 		add_filter( 'cmb2_repeat_table_row_types', array( $this, 'pw_multiselect_table_row_class' ), 10, 1 );
 	}
 
-	/**
-	 * Render select box field
-	 */
+    /**
+     * Render select box field
+     *
+     * @access public
+     * @param \CMB2_Field $field
+     * @param mixed $field_escaped_value
+     * @param int $field_object_id
+     * @param string $field_object_type
+     * @param \CMB2_Types $field_type_object
+     * @return void
+     */
 	public function render_pw_select( $field, $field_escaped_value, $field_object_id, $field_object_type, $field_type_object ) {
 		$this->setup_admin_scripts();
 
@@ -51,7 +61,15 @@ class PW_CMB2_Field_Select2 {
 
 	/**
 	 * Render multi-value select input field
-	 */
+     *
+     * @access public
+     * @param \CMB2_Field $field
+     * @param mixed $field_escaped_value
+     * @param int $field_object_id
+     * @param string $field_object_type
+     * @param \CMB2_Types $field_type_object
+     * @return void
+     */
 	public function render_pw_multiselect( $field, $field_escaped_value, $field_object_id, $field_object_type, $field_type_object ) {
 		$this->setup_admin_scripts();
 
@@ -59,7 +77,11 @@ class PW_CMB2_Field_Select2 {
 			$field_type_object->type = new CMB2_Type_Select( $field_type_object );
 		}
 
-		$a = $field_type_object->parse_args( 'pw_multiselect', array(
+        $postType = $field->args('post_type');
+        $callback = $postType ? array($this, 'posts') : $field->args('options_cb');
+        $field->args['options_cb'] = $callback;
+
+		$a = $field_type_object->parse_args('pw_multiselect', array(
 			'multiple'         => 'multiple',
 			'style'            => 'width: 99%',
 			'class'            => 'pw_select2 pw_multiselect',
@@ -68,7 +90,7 @@ class PW_CMB2_Field_Select2 {
 			'desc'             => $field_type_object->_desc( true ),
 			'options'          => $this->get_pw_multiselect_options( $field_escaped_value, $field_type_object ),
 			'data-placeholder' => $field->args( 'attributes', 'placeholder' ) ? $field->args( 'attributes', 'placeholder' ) : $field->args( 'description' ),
-		) );
+		));
 
 		$attrs = $field_type_object->concat_attrs( $a, array( 'desc', 'options' ) );
 		echo sprintf( '<select%s>%s</select>%s', $attrs, $a['options'], $a['desc'] );
@@ -180,5 +202,17 @@ class PW_CMB2_Field_Select2 {
 		wp_register_style( 'pw-select2', $asset_path . '/css/select2.min.css', array(), '4.0.3' );
 		wp_enqueue_style( 'pw-select2-tweaks', $asset_path . '/css/style.css', array( 'pw-select2' ), self::VERSION );
 	}
+
+	public function posts($field, $field_escaped_value, $field_type_object) {
+        $postType = $field->args('post_type');
+        $options = $field->args('options');
+        $posts = get_posts(['post_type' => $postType, 'posts_per_page' => -1, 'post_status' => 'any']);
+
+        foreach($posts AS $post) {
+            $options[$post->ID] = "#{$post->ID} - {$post->post_title} ({$post->post_type})";
+        }
+
+        return $options;
+    }
 }
 $pw_cmb2_field_select2 = new PW_CMB2_Field_Select2();
